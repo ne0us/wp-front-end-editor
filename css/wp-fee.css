@@ -400,6 +400,31 @@
 	transition: all .1s ease-in-out;
 }
 
+@media screen and (max-width: 782px) {
+	#wp-toolbar #wp-admin-bar-wp-fee-meta,
+	#wp-toolbar #wp-admin-bar-wp-fee-save,
+	#wp-toolbar #wp-admin-bar-wp-fee-publish,
+	#wp-toolbar #wp-admin-bar-wp-fee-close {
+		display: block;
+	}
+
+	#wp-toolbar #wp-admin-bar-wp-fee-save > div,
+	#wp-toolbar #wp-admin-bar-wp-fee-publish > div {
+		padding: 0 6px;
+	}
+
+	#wp-toolbar .button {
+		height: 35px;
+		line-height: 35px;
+		padding: 0 17px 1px;
+	}
+
+	#wp-toolbar .button-disabled,
+	#wp-toolbar .button-primary.disabled {
+		padding: 0 5px 1px;
+	}
+}
+
 .mce-panel {
 	background: #333;
 	-webkit-box-shadow: 0 3px 5px rgba(0, 0, 0, .2);
