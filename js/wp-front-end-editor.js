@@ -252,7 +252,7 @@
 		.ready( function() {
 			var postBody = $( '.wp-fee-post' ),
 				title = false,
-				title1, title2, title3, title4, title5, docTitle, postFormat;
+				title1, title2, title3, title4, title5, docTitle, postFormat, categories;
 			
 			$( '#message' ).delay( 5000 ).fadeOut( 'slow' );
 			
@@ -468,6 +468,22 @@
 					$( '.wp-fee-post' ).addClass( 'format-' + postFormat );
 					$( '.wp-fee-body' ).addClass( 'single-format-' + postFormat );
 				} );
+			categories = $( 'input[name="post_category[]"]')
+				.change( function () {
+					var slug = $(this).parent().text().trim().replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase().replace(/--+/g, '-');
+					if ( $(this).is(':checked') ) {
+						$( '.wp-fee-post' ).addClass( 'category-' + slug );
+						categories.push( slug );
+					} else {
+						$( '.wp-fee-post' ).removeClass( 'category-' + slug );
+						categories.splice( $.inArray( slug, categories ), 1 );
+					}
+				} )
+				.filter( ':checked' )
+				.map( function () {
+					return this.value
+				} );
+
 			$( '.wp-fee-submit' )
 				.on( 'click', function() {
 					var sumbitButton = $( this ),
