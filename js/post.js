@@ -1064,7 +1064,7 @@ jQuery(document).ready( function($) {
 		});
 	}
 
-	if ( ! ( 'ontouchstart' in window ) ) {
+	if ( ! ( 'ontouchstart' in window ) && $( 'body' ).hasClass( 'wp-admin' ) ) {
 		// When scrolling with mouse wheel or trackpad inside the Text editor, don't scroll the whole window
 		$content = $('#content').on( 'onwheel' in $document[0] ? 'wheel.text-editor-scroll' : 'mousewheel.text-editor-scroll', function( event ) {
 			var delta, origEvent = event.originalEvent;

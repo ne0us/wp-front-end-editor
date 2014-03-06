@@ -2,7 +2,7 @@
 
 class WP_Front_End_Editor {
 
-	const VERSION = '0.8.4';
+	const VERSION = '0.8.5';
 	const PLUGIN = 'wp-front-end-editor/wp-front-end-editor.php';
 
 	private static $instance;
@@ -58,21 +58,33 @@ class WP_Front_End_Editor {
 
 			return;
 
-		if ( $id == get_option( 'page_on_front' ) )
+		if ( $id == get_option( 'page_on_front' ) ) {
 
-			return home_url( '?editing' );
+			$link = home_url( '?editing' );
 
-		$permalink = get_permalink( $post->ID );
+		} else {
 
-		if ( strpos( $permalink, '?' ) !== false )
+			$permalink = get_permalink( $post->ID );
 
-			return add_query_arg( 'edit', '', $permalink );
+			if ( strpos( $permalink, '?' ) !== false )
 
-		if ( trailingslashit( $permalink ) === $permalink )
+				$link = add_query_arg( 'edit', '', $permalink );
 
-			return trailingslashit( $permalink . 'edit' );
+			if ( trailingslashit( $permalink ) === $permalink )
 
-		return trailingslashit( $permalink ) . 'edit';
+				$link = trailingslashit( $permalink . 'edit' );
+
+			if ( ! isset( $link ) )
+
+				$link = trailingslashit( $permalink ) . 'edit';
+
+		}
+
+		if ( force_ssl_admin() )
+
+			$link = set_url_scheme( $link, 'https' );
+
+		return $link;
 
 	}
 
@@ -129,6 +141,9 @@ class WP_Front_End_Editor {
 
 		add_rewrite_endpoint( 'edit', EP_PERMALINK | EP_PAGES | EP_ROOT );
 
+		add_post_type_support( 'post', 'front-end-editor' );
+		add_post_type_support( 'page', 'front-end-editor' );
+
 		add_action( 'wp', array( $this, 'wp' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'admin_enqueue_scripts' ) );
 
@@ -163,13 +178,50 @@ class WP_Front_End_Editor {
 
 		add_filter( 'body_class', array( $this, 'body_class' ) );
 
+		if ( ! empty( $_GET['get-post-lock'] ) ) {
+
+			require_once( ABSPATH . '/wp-admin/includes/post.php' );
+
+			wp_set_post_lock( $post->ID );
+
+			wp_redirect( $this->edit_link( $post->ID ) );
+
+			die();
+
+		}
+
 		if ( ! $this->is_edit() )
 
 			return;
-		
+
+		if ( force_ssl_admin()
+			&& ! is_ssl() ) {
+
+			wp_redirect( set_url_scheme( get_permalink( $post->ID ), 'https' ) );
+
+			die();
+
+		}
+
 		if ( ! $post )
 
 			wp_die( __( 'You attempted to edit an item that doesn&#8217;t exist. Perhaps it was deleted?' ) );
+
+		if ( ! post_type_supports( $post->post_type, 'front-end-editor' ) ) {
+
+			wp_redirect( get_permalink( $post->ID ) );
+
+			die();
+
+		}
+
+		if ( ! is_user_logged_in() ) {
+
+			wp_redirect( wp_login_url( $this->edit_link( $post->ID ) ) );
+
+			die();
+
+		}
 
 		if ( ! current_user_can( 'edit_post', $post->ID ) )
 
@@ -181,16 +233,6 @@ class WP_Front_End_Editor {
 
 		$post_type = $post->post_type;
 		$post_type_object = get_post_type_object( $post_type );
-		
-		if ( ! empty( $_GET['get-post-lock'] ) ) {
-
-			wp_set_post_lock( $post->ID );
-
-			wp_redirect( get_edit_post_link( $post->ID, 'url' ) );
-
-			die();
-
-		}
 
 		require_once( ABSPATH . '/wp-admin/includes/admin.php' );
 		require_once( ABSPATH . '/wp-admin/includes/meta-boxes.php' );
@@ -210,6 +252,14 @@ class WP_Front_End_Editor {
 		add_filter( 'post_thumbnail_html', array( $this, 'post_thumbnail_html' ), 10, 5 );
 		add_filter( 'get_post_metadata', array( $this, 'get_post_metadata' ), 10, 4 );
 
+		$check_users = get_users( array( 'fields' => 'ID', 'number' => 2 ) );
+
+		if ( count( $check_users ) > 1 )
+
+			add_action( 'wp_print_footer_scripts', '_admin_notice_post_locked' );
+
+		unset( $check_users );
+
 	}
 
 	public function get_edit_post_link( $link, $id, $context ) {
@@ -227,10 +277,11 @@ class WP_Front_End_Editor {
 
 			return get_permalink( $id );
 
-		if ( ! is_admin()
-			|| ( $pagenow === 'revision.php'
-				&& isset( $_GET['redirect'] )
-				&& $_GET['redirect'] === 'front' ) )
+		if ( post_type_supports( $post->post_type, 'front-end-editor' )
+			&& ( ! is_admin()
+				|| ( $pagenow === 'revision.php'
+					&& isset( $_GET['redirect'] )
+					&& $_GET['redirect'] === 'front' ) ) )
 
 			return $this->edit_link( $id );
 
@@ -405,7 +456,7 @@ class WP_Front_End_Editor {
 			wp_enqueue_script( 'tipsy', $this->url( 'js/jquery.tipsy.js' ), array( 'jquery' ), self::VERSION, true );
 			wp_enqueue_script( 'heartbeat' );
 			wp_enqueue_script( 'postbox', admin_url( 'js/postbox.js' ), array( 'jquery-ui-sortable' ), self::VERSION, true );
-			wp_enqueue_script( 'post-custom', version_compare( $wp_version, '3.9-alpha', '<' ) ? $this->url( '/js/post.js' ) : admin_url( 'js/post.js' ), array( 'suggest', 'wp-lists', 'postbox', 'heartbeat' ), self::VERSION, true );
+			wp_enqueue_script( 'post-custom', $this->url( '/js/post.js' ), array( 'suggest', 'wp-lists', 'postbox', 'heartbeat' ), self::VERSION, true );
 
 			$vars = array(
 				'ok' => __( 'OK' ),
@@ -440,7 +491,7 @@ class WP_Front_End_Editor {
 				'blog_id' => get_current_blog_id(),
 			) );
 			
-			wp_enqueue_script( 'tinymce-4', $this->url( '/js/tinymce/tinymce' . ( SCRIPT_DEBUG ? '' : '.min' ) . '.js' ), array(), '4.0.16', true );
+			wp_enqueue_script( 'tinymce-4', $this->url( '/js/tinymce/tinymce' . ( SCRIPT_DEBUG ? '' : '.min' ) . '.js' ), array(), '4.0.18', true );
 			wp_enqueue_script( 'wp-front-end-editor', $this->url( '/js/wp-front-end-editor.js' ), array(), self::VERSION, true );
 
 			$vars = array(
@@ -470,15 +521,19 @@ class WP_Front_End_Editor {
 			wp_enqueue_script( 'tipsy', $this->url( 'js/jquery.tipsy.js' ), array( 'jquery' ), self::VERSION, true );
 			wp_enqueue_script( 'wp-fee-adminbar', $this->url( '/js/wp-fee-adminbar.js' ), array( 'jquery' ), self::VERSION, true );
 
-			require_once( ABSPATH . '/wp-admin/includes/post.php' );
+			if ( is_singular() ) {
 
-			$user_id = wp_check_post_lock( $post->ID );
-			$user = get_userdata( $user_id );
+				require_once( ABSPATH . '/wp-admin/includes/post.php' );
+
+				$user_id = wp_check_post_lock( $post->ID );
+				$user = get_userdata( $user_id );
+
+			}
 
 			$vars = array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'homeUrl' => home_url( '/' ),
-				'lock' => $user_id ? $user->display_name : false
+				'lock' => ( is_singular() && $user_id ) ? $user->display_name : false
 			);
 
 			wp_localize_script( 'wp-fee-adminbar', 'wpFee', $vars );
@@ -632,6 +687,8 @@ class WP_Front_End_Editor {
 
 			$classes[] = 'wp-fee-body';
 
+		$classes[] = esc_attr( 'wp-fee-status-' . $post->post_status );
+
 		require_once( ABSPATH . '/wp-admin/includes/post.php' );
 
 		if ( is_singular()
@@ -678,7 +735,6 @@ class WP_Front_End_Editor {
 			$content = wpautop( $content );
 			$content = shortcode_unautop( $content );
 			$content = $this->do_shortcode( $content );
-			$content = preg_replace( "/<!--(.*?)-->/s", esc_html( "<!--$1-->" ), $content);
 			$content = '<div class="wp-fee-content-holder"><p class="wp-fee-content-placeholder">&hellip;</p><div id="wp-fee-content-' . $post->ID . '" class="wp-fee-content">' . $content . '</div></div>';
 
 		}
@@ -801,7 +857,6 @@ class WP_Front_End_Editor {
 			$this->response( __( 'You are not allowed to edit this item.' ) );
 
 		$_POST['post_title'] = strip_tags( $_POST['post_title'] );
-		$_POST['post_content'] = preg_replace( esc_html( "/<!--(.*?)-->/s" ), "<!--$1-->", $_POST['post_content'] );
 
 		$post_id = edit_post();
 		
@@ -873,7 +928,7 @@ class WP_Front_End_Editor {
 
 		if ( $m[1] == '[' && $m[6] == ']' )
 
-			return substr($m[0], 1, -1);
+			return $m[0];
 
 		$tag = $m[2];
 		$attr = shortcode_parse_atts( $m[3] );
@@ -970,7 +1025,7 @@ class WP_Front_End_Editor {
 
 		$post = get_default_post_to_edit( isset( $_POST['post_type'] ) ? $_POST['post_type'] : 'post', true );
 
-		$this->response( $post->ID );
+		$this->response( $this->edit_link( $post->ID ) );
 
 	}
 
